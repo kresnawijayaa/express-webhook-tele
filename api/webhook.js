@@ -11,7 +11,7 @@ const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 app.get('/', async (req, res) => {
   try {
-    res.status(200).send("alo alo!");
+    res.status(200).send("alo alo!" + BOT_TOKEN);
   } catch (error) {
     res.status(500).send(error.message);
   }
