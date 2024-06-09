@@ -39,7 +39,7 @@ app.post('/api/webhook', (req, res) => {
 });
 
 // Add this line to start server locally
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
