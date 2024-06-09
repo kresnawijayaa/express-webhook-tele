@@ -31,7 +31,8 @@ app.post('/api/webhook', (req, res) => {
       res.status(200).send('Message sent');
     }).catch((error) => {
       console.error('Error sending message', error);
-      res.status(500).send('Error sending message');
+      res.status(500).send(message);
+      // res.status(500).send('Error sending message');
     });
   } else {
     res.status(200).send('No message to process');
