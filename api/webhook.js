@@ -9,6 +9,14 @@ app.use(bodyParser.json());
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
+app.get('/', async (req, res) => {
+  try {
+    res.status(200).send("alo alo!");
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+});
+
 app.post('/api/webhook', (req, res) => {
   const { message } = req.body;
 
@@ -28,6 +36,12 @@ app.post('/api/webhook', (req, res) => {
   } else {
     res.status(200).send('No message to process');
   }
+});
+
+// Add this line to start server locally
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
 
 module.exports = app;
