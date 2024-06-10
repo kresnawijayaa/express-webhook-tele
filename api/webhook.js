@@ -87,7 +87,7 @@ app.post("/api/webhook", async (req, res) => {
         history: [],
       });
 
-      const result = await chatSession.sendMessage(message.text + ". Jawab dengan bahasa jerman");
+      const result = await chatSession.sendMessage(message.text + ". Jawab dengan text polos saja, tanpa **bold** atau sejenisnya.");
       console.log(result.response.text());
 
       axios
