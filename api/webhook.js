@@ -3,7 +3,27 @@ const bodyParser = require("body-parser");
 const axios = require("axios");
 const randomize = require("randomatic");
 const moment = require("moment");
+const {
+  GoogleGenerativeAI,
+  HarmCategory,
+  HarmBlockThreshold,
+} = require("@google/generative-ai");
 require("dotenv").config();
+
+const apiKey = process.env.GEMINI_API_KEY;
+const genAI = new GoogleGenerativeAI(apiKey);
+
+const model = genAI.getGenerativeModel({
+  model: "gemini-1.5-flash",
+});
+
+const generationConfig = {
+  temperature: 1,
+  topP: 0.95,
+  topK: 64,
+  maxOutputTokens: 8192,
+  responseMimeType: "text/plain",
+};
 
 const app = express();
 app.use(bodyParser.json());
@@ -29,7 +49,7 @@ app.get("/", async (req, res) => {
   }
 });
 
-app.post("/api/webhook", (req, res) => {
+app.post("/api/webhook", async (req, res) => {
   const { message } = req.body;
 
   if (message) {
@@ -60,10 +80,20 @@ app.post("/api/webhook", (req, res) => {
           res.status(500).send("Failed to send start message");
         });
     } else {
+      const chatSession = model.startChat({
+        generationConfig,
+        // safetySettings: Adjust safety settings
+        // See https://ai.google.dev/gemini-api/docs/safety-settings
+        history: [],
+      });
+
+      const result = await chatSession.sendMessage(message.text + ". Jawab singkat saja, dan buat dalam format pesan telegram.");
+      console.log(result.response.text());
+
       axios
         .post(`${TELEGRAM_API}/sendMessage`, {
           chat_id: chatId,
-          text: responseMessage,
+          text: result.response.text(),
         })
         .then(() => {
           res.status(200).send("Message sent");
