@@ -1,7 +1,7 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const axios = require("axios");
-const randomize = require("randomatic");
+const admin = require("firebase-admin");
 const moment = require("moment");
 const {
   GoogleGenerativeAI,
@@ -9,6 +9,13 @@ const {
   HarmBlockThreshold,
 } = require("@google/generative-ai");
 require("dotenv").config();
+
+// Inisialisasi Firebase
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+const db = admin.firestore();
 
 const apiKey = process.env.GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey);
@@ -28,16 +35,6 @@ const generationConfig = {
 const app = express();
 app.use(bodyParser.json());
 
-// Function to generate a random reference number
-// const generateRef = () => {
-//   return randomize("a0", 6);
-// };
-
-// Function to generate OTP
-const generateOTP = () => {
-  return randomize("0", 6);
-};
-
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
@@ -54,55 +51,47 @@ app.post("/api/webhook", async (req, res) => {
 
   if (message) {
     const chatId = message.chat.id;
-    const responseMessage = `Hello, you said: ${message.text}`;
+    const sessionRef = db.collection('sessions').doc(chatId.toString());
+    
+    // Ambil konteks dari Firestore
+    const doc = await sessionRef.get();
+    let history = doc.exists ? doc.data().history : [];
 
-    if (message.text === "otp") {
-      console.log(BOT_TOKEN, chatId, "ini start");
+    // Tambahkan pesan pengguna ke riwayat
+    history.push({
+      role: "user",
+      parts: [{ text: message.text }],
+    });
 
-      const otp = generateOTP();
-      const timestamp = moment().format("YYYY-MM-DD HH:mm:ss");
-      const replyMessage = `Permintaan Kode Verifikasi OTP\n\n HATI HATI PENIPUAN\n\nOTP: ${otp}\nTgl/Jam: ${timestamp}`;
+    // Mulai sesi percakapan dengan riwayat yang ada
+    const chatSession = model.startChat({
+      generationConfig,
+      history: history,
+    });
 
-      axios
-        .post(`${TELEGRAM_API}/sendMessage`, {
-          chat_id: chatId,
-          text: replyMessage,
-        })
-        .then((response) => {
-          console.log("Start message sent:", response.data);
-          res.status(200).send("Start message sent successfully");
-        })
-        .catch((error) => {
-          console.error(
-            "Error sending start message:",
-            error.response ? error.response.data : error.message
-          );
-          res.status(500).send("Failed to send start message");
-        });
-    } else {
-      const chatSession = model.startChat({
-        generationConfig,
-        // safetySettings: Adjust safety settings
-        // See https://ai.google.dev/gemini-api/docs/safety-settings
-        history: [],
+    try {
+      const result = await chatSession.sendMessage(message.text);
+      const responseText = await result.response.text();
+      
+      // Tambahkan respons AI ke riwayat
+      history.push({
+        role: "model",
+        parts: [{ text: responseText }],
       });
 
-      const result = await chatSession.sendMessage(message.text + ". Jawab dengan singkat, seperti chat dengan teman gen z");
-      console.log(result.response.text());
+      // Simpan riwayat yang diperbarui ke Firestore
+      await sessionRef.set({ history: history, last_updated: new Date() });
 
-      axios
-        .post(`${TELEGRAM_API}/sendMessage`, {
-          chat_id: chatId,
-          text: result.response.text(),
-        })
-        .then(() => {
-          res.status(200).send("Message sent");
-        })
-        .catch((error) => {
-          console.error("Error sending message", error);
-          res.status(500).send(message);
-          // res.status(500).send('Error sending message');
-        });
+      // Kirim respons ke pengguna
+      await axios.post(`${TELEGRAM_API}/sendMessage`, {
+        chat_id: chatId,
+        text: responseText,
+      });
+
+      res.status(200).send("Message sent");
+    } catch (error) {
+      console.error("Error:", error);
+      res.status(500).send(error.message);
     }
   } else {
     res.status(200).send("No message to process");
